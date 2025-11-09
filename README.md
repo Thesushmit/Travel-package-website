@@ -2,7 +2,7 @@
 
 A modern, full-featured travel package booking platform built with React, TypeScript, and Supabase.
 
-🌐 **Live Website**: [https://travel-package-website-nu.vercel.app/](https://travel-package-website-nu.vercel.app/)
+🌐 **Live Website**: [https://travel-package-web.vercel.app/](https://travel-package-web.vercel.app/)
 
 📦 **Repository**: [https://github.com/Thesushmit/Travel-package-website](https://github.com/Thesushmit/Travel-package-website)
 

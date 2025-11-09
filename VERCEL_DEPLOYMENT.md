@@ -133,3 +133,4 @@ If issues persist:
 3. Verify environment variables are set correctly
 4. Ensure Supabase project is active and accessible
 
+
