@@ -15,6 +15,7 @@ export default defineConfig({
     },
   },
   root: path.resolve(__dirname),
+  base: "/",
   build: {
     outDir: "dist",
     sourcemap: false,
