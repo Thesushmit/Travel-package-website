@@ -1,0 +1,20 @@
+{
+  "name": "travel-package-website-backend",
+  "version": "1.0.0",
+  "description": "Backend for Travel Package Website using Supabase",
+  "main": "index.js",
+  "scripts": {
+    "add-packages": "tsx scripts/add-sample-packages.ts",
+    "check-connection": "tsx scripts/check-supabase-connection.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.80.0",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.16.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  }
+}
+
