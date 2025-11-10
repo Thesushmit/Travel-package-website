@@ -1,11 +1,44 @@
 # Wanderlust Hub
 
-A full-stack travel booking platform built with a modern React + Express + MongoDB stack.
+A full-stack travel booking platform built with React, Express, and MongoDB.
 
-## 🚀 What’s Inside
+## 📁 Project Structure
 
-- **Frontend**: React 18, TypeScript, Vite, Tailwind, shadcn/ui, React Query, React Router
-- **Backend**: Node.js, Express, MongoDB, Mongoose, JWT, bcrypt
+```
+wanderlust-hub/
+├── backend/
+│   ├── config/
+│   ├── controllers/
+│   ├── middleware/
+│   ├── models/
+│   ├── routes/
+│   ├── utils/
+│   └── server.js
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   │   ├── components/
+│   │   ├── contexts/
+│   │   ├── pages/
+│   │   ├── services/
+│   │   └── main.tsx
+└── README.md
+```
+
+## 🖼️ Preview
+
+| Landing | Package Detail | Booking |
+| --- | --- | --- |
+| ![Landing](docs/screenshots/landing.png) | ![Package Detail](docs/screenshots/package-detail.png) | ![Booking](docs/screenshots/booking.png) |
+
+| Dashboard | Sign Up | Dashboard Bookings |
+| --- | --- | --- |
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Sign Up](docs/screenshots/signup.png) | ![Bookings](docs/screenshots/dashboard-bookings.png) |
+
+## 🚀 Tech Stack
+
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, React Query, React Router
+- **Backend**: Node.js, Express, MongoDB, Mongoose, JWT, bcryptjs
 - **Tooling**: ESLint, Prettier, PostCSS, Vite SWC
 
 ## 🧱 Architecture Overview
@@ -97,18 +130,7 @@ erDiagram
 
 ## 🛠️ Getting Started
 
-### Prerequisites
-- Node.js ≥ 18
-- npm
-- MongoDB (local or Atlas)
-
-### 1. Clone & Install
-```bash
-git clone https://github.com/Thesushmit/Travel-package-website.git
-cd Travel-package-website
-```
-
-### 2. Backend Setup
+### Backend
 ```bash
 cd backend
 npm install
@@ -122,18 +144,18 @@ CLIENT_ORIGIN=http://localhost:8080
 EOF
 npm run dev
 ```
-> In development the API auto-seeds 20+ INR-priced sample packages on start.
+> Development mode auto-seeds 20+ INR-priced travel packages.
 
-### 3. Frontend Setup
+### Frontend
 ```bash
-cd ../frontend
+cd frontend
 npm install
 cat <<'EOF' > .env
 VITE_API_URL=http://localhost:5000
 EOF
 npm run dev
 ```
-The SPA runs at `http://localhost:8080` and communicates with the Express API at `http://localhost:5000`.
+App: `http://localhost:8080` • API: `http://localhost:5000`
 
 ## 📦 Scripts
 
@@ -141,9 +163,9 @@ The SPA runs at `http://localhost:8080` and communicates with the Express API at
 |------|---------|-------------|
 | Backend | `npm run dev` | Start Express with nodemon |
 | Backend | `npm run start` | Production start |
-| Frontend | `npm run dev` | Start Vite dev server |
-| Frontend | `npm run build` | Generate production build |
-| Frontend | `npm run preview` | Preview production build |
+| Frontend | `npm run dev` | Vite dev server |
+| Frontend | `npm run build` | Production build |
+| Frontend | `npm run preview` | Preview build |
 
 ## 🤝 Contributing
 1. Fork the repo
