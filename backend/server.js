@@ -9,7 +9,6 @@ import packageRoutes from './routes/packageRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import wishlistRoutes from './routes/wishlistRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
-import TravelPackage from './models/TravelPackage.js';
 import { seedPackages } from './controllers/packageController.js';
 
 dotenv.config();
@@ -19,16 +18,19 @@ const app = express();
 // Database connection
 connectDB();
 
-// Dev auto-seed
+// Dev auto-seed (always ensure latest catalog)
 if (process.env.NODE_ENV !== 'production') {
   (async () => {
     try {
-      const count = await TravelPackage.countDocuments();
-      if (count === 0) {
-        // @ts-ignore - using controller fn directly
-        await seedPackages({}, { status: () => ({ json: () => null }) });
-        console.log('🌱 Sample packages seeded');
-      }
+      const fakeRes = {
+        status() {
+          return this;
+        },
+        json(payload) {
+          console.log('🌱 Package seed status:', payload);
+        }
+      };
+      await seedPackages({}, fakeRes);
     } catch (e) {
       console.warn('Seed skipped:', e?.message || e);
     }
@@ -39,10 +41,10 @@ if (process.env.NODE_ENV !== 'production') {
 if (process.env.NODE_ENV !== 'production') {
   app.use(cors({ origin: true, credentials: true }));
 } else {
-  app.use(cors({
-    origin: process.env.CLIENT_ORIGIN?.split(',') || 'http://localhost:8080',
-    credentials: true
-  }));
+    app.use(cors({
+      origin: process.env.CLIENT_ORIGIN?.split(',') || 'http://localhost:8080',
+      credentials: true
+    }));
 }
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
