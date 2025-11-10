@@ -1,8 +1,8 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { cartApi } from '@/services/api';
 
 interface CartItem {
   id: string;
@@ -42,25 +42,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     queryKey: ['cart', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      
-      const { data, error } = await supabase
-        .from('cart')
-        .select(`
-          *,
-          travel_packages (
-            id,
-            title,
-            price,
-            currency,
-            images,
-            slug
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as CartItem[];
+      const { cart } = await cartApi.list();
+      return cart as CartItem[];
     },
     enabled: !!user,
   });
@@ -68,22 +51,13 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const addToCartMutation = useMutation({
     mutationFn: async ({ packageId, numberOfGuests = 1, bookingDate }: { packageId: string; numberOfGuests?: number; bookingDate?: string }) => {
       if (!user) throw new Error('You must be logged in to add items to cart');
-      
-      const { data, error } = await supabase
-        .from('cart')
-        .upsert({
-          user_id: user.id,
-          package_id: packageId,
-          number_of_guests: numberOfGuests,
-          booking_date: bookingDate || null,
-        }, {
-          onConflict: 'user_id,package_id'
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      const payload = {
+        package_id: packageId,
+        number_of_guests: numberOfGuests,
+        booking_date: bookingDate || null
+      };
+      const { item } = await cartApi.upsert(payload);
+      return item;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart', user?.id] });
@@ -104,14 +78,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const removeFromCartMutation = useMutation({
     mutationFn: async (cartItemId: string) => {
       if (!user) throw new Error('You must be logged in');
-      
-      const { error } = await supabase
-        .from('cart')
-        .delete()
-        .eq('id', cartItemId)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      await cartApi.remove(cartItemId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart', user?.id] });
@@ -132,17 +99,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const updateCartItemMutation = useMutation({
     mutationFn: async ({ cartItemId, numberOfGuests, bookingDate }: { cartItemId: string; numberOfGuests: number; bookingDate?: string }) => {
       if (!user) throw new Error('You must be logged in');
-      
-      const { error } = await supabase
-        .from('cart')
-        .update({
-          number_of_guests: numberOfGuests,
-          booking_date: bookingDate || null,
-        })
-        .eq('id', cartItemId)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      await cartApi.update(cartItemId, {
+        number_of_guests: numberOfGuests,
+        booking_date: bookingDate || null
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart', user?.id] });
@@ -163,13 +123,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const clearCartMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error('You must be logged in');
-      
-      const { error } = await supabase
-        .from('cart')
-        .delete()
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      await cartApi.clear();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart', user?.id] });
@@ -215,7 +169,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   const cartTotal = cartItems.reduce((total, item) => {
     const price = item.travel_packages?.price || 0;
     const guests = item.number_of_guests || 1;
-    return total + (price * guests);
+    return total + price * guests;
   }, 0);
 
   return (

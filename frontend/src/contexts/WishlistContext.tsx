@@ -1,11 +1,12 @@
 import { createContext, useContext, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { wishlistApi } from '@/services/api';
 
 interface WishlistItem {
   id: string;
+  user_id: string;
   package_id: string;
   created_at: string;
   travel_packages?: {
@@ -13,8 +14,8 @@ interface WishlistItem {
     title: string;
     price: number;
     currency: string;
-    images: string[] | null;
     slug: string;
+    images: string[] | null;
   };
 }
 
@@ -24,7 +25,6 @@ interface WishlistContextType {
   addToWishlist: (packageId: string) => Promise<void>;
   removeFromWishlist: (wishlistItemId: string) => Promise<void>;
   isInWishlist: (packageId: string) => boolean;
-  wishlistCount: number;
 }
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
@@ -37,44 +37,16 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
     queryKey: ['wishlist', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      
-      const { data, error } = await supabase
-        .from('wishlist')
-        .select(`
-          *,
-          travel_packages (
-            id,
-            title,
-            price,
-            currency,
-            images,
-            slug
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as WishlistItem[];
+      const { wishlist } = await wishlistApi.list();
+      return wishlist as WishlistItem[];
     },
     enabled: !!user,
   });
 
-  const addToWishlistMutation = useMutation({
+  const addMutation = useMutation({
     mutationFn: async (packageId: string) => {
-      if (!user) throw new Error('You must be logged in to add items to wishlist');
-      
-      const { data, error } = await supabase
-        .from('wishlist')
-        .insert({
-          user_id: user.id,
-          package_id: packageId,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      if (!user) throw new Error('You must be logged in');
+      await wishlistApi.add({ package_id: packageId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wishlist', user?.id] });
@@ -84,32 +56,18 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
       });
     },
     onError: (error: any) => {
-      if (error.code === '23505') {
-        toast({
-          title: 'Already in wishlist',
-          description: 'This item is already in your wishlist',
-        });
-      } else {
-        toast({
-          title: 'Error',
-          description: error.message || 'Failed to add to wishlist',
-          variant: 'destructive',
-        });
-      }
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update wishlist',
+        variant: 'destructive',
+      });
     },
   });
 
-  const removeFromWishlistMutation = useMutation({
+  const removeMutation = useMutation({
     mutationFn: async (wishlistItemId: string) => {
       if (!user) throw new Error('You must be logged in');
-      
-      const { error } = await supabase
-        .from('wishlist')
-        .delete()
-        .eq('id', wishlistItemId)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      await wishlistApi.remove(wishlistItemId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['wishlist', user?.id] });
@@ -121,7 +79,7 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
     onError: (error: any) => {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to remove from wishlist',
+        description: error.message || 'Failed to update wishlist',
         variant: 'destructive',
       });
     },
@@ -136,30 +94,19 @@ export const WishlistProvider = ({ children }: { children: ReactNode }) => {
       });
       return;
     }
-    await addToWishlistMutation.mutateAsync(packageId);
+    await addMutation.mutateAsync(packageId);
   };
 
   const removeFromWishlist = async (wishlistItemId: string) => {
-    await removeFromWishlistMutation.mutateAsync(wishlistItemId);
+    await removeMutation.mutateAsync(wishlistItemId);
   };
 
   const isInWishlist = (packageId: string) => {
-    return wishlistItems.some(item => item.package_id === packageId);
+    return wishlistItems.some((item) => item.package_id === packageId);
   };
 
-  const wishlistCount = wishlistItems.length;
-
   return (
-    <WishlistContext.Provider
-      value={{
-        wishlistItems,
-        isLoading,
-        addToWishlist,
-        removeFromWishlist,
-        isInWishlist,
-        wishlistCount,
-      }}
-    >
+    <WishlistContext.Provider value={{ wishlistItems, isLoading, addToWishlist, removeFromWishlist, isInWishlist }}>
       {children}
     </WishlistContext.Provider>
   );

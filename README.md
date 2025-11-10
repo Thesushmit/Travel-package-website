@@ -1,6 +1,6 @@
 # Travel Package Website - Book Your Dream Vacation
 
-A modern, full-featured travel package booking platform built with React, TypeScript, and Supabase.
+A modern, full-featured travel package booking platform built with React, TypeScript, Express, and MongoDB.
 
 🌐 **Live Website**: [https://travel-package-web.vercel.app/](https://travel-package-web.vercel.app/)
 
@@ -60,18 +60,28 @@ graph TB
     end
     
     subgraph "Service Layer"
-        C[Supabase Client]
-        C1[Authentication Service]
-        C2[Database Service]
-        C3[Storage Service]
+        C[REST API Client]
+        C1[Auth Requests]
+        C2[Packages & Bookings]
+        C3[Cart & Wishlist]
     end
     
     subgraph "Backend Services"
-        D[Supabase Backend]
-        D1[PostgreSQL Database]
-        D2[Row Level Security]
-        D3[JWT Authentication]
-        D4[Real-time Subscriptions]
+        D[Node.js Express API]
+        D1[Authentication Controller]
+        D2[Travel Package Controller]
+        D3[Booking Controller]
+        D4[Cart & Wishlist Controller]
+        D5[JWT Middleware]
+    end
+    
+    subgraph "Data Layer"
+        E[MongoDB Atlas / Compass]
+        E1[Users Collection]
+        E2[Travel Packages]
+        E3[Bookings]
+        E4[Wishlist]
+        E5[Cart]
     end
     
     A --> A1
@@ -81,16 +91,18 @@ graph TB
     B --> B2
     B1 --> C
     B2 --> C
-    C --> C1
-    C --> C2
-    C --> C3
-    C1 --> D
-    C2 --> D
-    C3 --> D
+    C --> D
     D --> D1
     D --> D2
     D --> D3
     D --> D4
+    D --> D5
+    D --> E
+    E --> E1
+    E --> E2
+    E --> E3
+    E --> E4
+    E --> E5
 ```
 
 ### Component Architecture
@@ -157,11 +169,12 @@ graph LR
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| **Supabase** | 2.80.0 | Backend-as-a-Service |
-| **PostgreSQL** | Latest | Relational Database |
-| **Supabase Auth** | Latest | Authentication Service |
-| **Row Level Security** | Built-in | Database Security |
-| **JWT** | Built-in | Token-based Auth |
+| **Node.js + Express** | 18.x / 4.21.x | REST API Framework |
+| **MongoDB** | 7.x | Document Database |
+| **Mongoose** | 8.19.x | ODM for MongoDB |
+| **JSON Web Tokens** | 9.0.x | Authentication |
+| **bcryptjs** | 2.4.x | Password Hashing |
+| **cors & cookie-parser** | Latest | API Middleware |
 
 ### Development Tools
 
@@ -854,90 +867,55 @@ flowchart TD
 
 ## 🔌 API Documentation
 
-### Supabase Client Methods
-
-#### Authentication
+### Authentication API
 
 ```typescript
-// Sign Up
-supabase.auth.signUp({
-  email: string,
-  password: string,
-  options: {
-    data: { name: string }
-  }
-})
+// Register
+await fetch(`${API_URL}/api/auth/register`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name, email, password })
+});
 
-// Sign In
-supabase.auth.signInWithPassword({
-  email: string,
-  password: string
-})
+// Login
+const { token, user } = await fetch(`${API_URL}/api/auth/login`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, password })
+}).then((res) => res.json());
 
-// Sign Out
-supabase.auth.signOut()
+// Logout
+await fetch(`${API_URL}/api/auth/logout`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${token}` }
+});
 
 // Get Current User
-supabase.auth.getUser()
-
-// Get Session
-supabase.auth.getSession()
+await fetch(`${API_URL}/api/auth/me`, {
+  headers: { Authorization: `Bearer ${token}` }
+});
 ```
 
-#### Database Queries
+### Example API Usage
 
 ```typescript
-// Get Packages
-supabase
-  .from('travel_packages')
-  .select('*')
-  .order('created_at', { ascending: false })
+// Fetch Packages
+const packages = await fetch(`${API_URL}/api/packages`).then(res => res.json());
 
-// Get Package by Slug
-supabase
-  .from('travel_packages')
-  .select('*')
-  .eq('slug', slug)
-  .single()
+// Fetch Package by Slug
+const pkg = await fetch(`${API_URL}/api/packages/slug/${slug}`).then(res => res.json());
 
 // Create Booking
-supabase
-  .from('bookings')
-  .insert({
-    user_id: string,
+await fetch(`${API_URL}/api/bookings`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+  body: JSON.stringify({
     package_id: string,
-    booking_date: date,
+    booking_date: string,
     number_of_guests: number,
-    status: 'pending',
-    total_price: number
+    special_requests: string | null
   })
-
-// Get User Bookings
-supabase
-  .from('bookings')
-  .select(`
-    *,
-    travel_packages (*)
-  `)
-  .eq('user_id', userId)
-
-// Add to Cart
-supabase
-  .from('cart')
-  .insert({
-    user_id: string,
-    package_id: string,
-    booking_date: date,
-    number_of_guests: number
-  })
-
-// Add to Wishlist
-supabase
-  .from('wishlist')
-  .insert({
-    user_id: string,
-    package_id: string
-  })
+});
 ```
 
 ---
@@ -947,8 +925,8 @@ supabase
 ### Prerequisites
 
 - **Node.js** v18 or higher
-- **npm** or **yarn**
-- **Supabase Account** (free tier available)
+- **npm** (bundled with Node.js)
+- **MongoDB** running locally (e.g. via MongoDB Compass) or an Atlas cluster
 - **Git** (for cloning)
 
 ### Step-by-Step Installation
@@ -969,36 +947,29 @@ cd backend
 # Install dependencies
 npm install
 
-# Create .env file
-cat > .env << EOF
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+# Create .env file (example values)
+cat > .env << 'EOF'
+PORT=5000
+MONGODB_URI=mongodb://127.0.0.1:27017/travelDB
+JWT_SECRET=super_secret_key_change_me
+JWT_EXPIRES_IN=7d
+JWT_COOKIE_MAX_AGE=604800000
+CLIENT_ORIGIN=http://localhost:5173
 EOF
 
-# Verify connection
-npm run check-connection
+# Start the API server
+npm run dev
 ```
 
-#### 3. Database Setup
+> The server will connect to the MongoDB instance defined in `MONGODB_URI`. If you are using MongoDB Compass, ensure the database `travelDB` exists or will be created automatically when the server runs.
 
-1. Go to [Supabase Dashboard](https://app.supabase.com)
-2. Create a new project
-3. Navigate to SQL Editor
-4. Run migrations in order:
-   - `backend/supabase/migrations/20251109045238_3a28aee0-4d3a-41b6-b945-d16bffa677d2.sql`
-   - `backend/supabase/migrations/20250110000000_add_bookings_wishlist_cart.sql`
-   - `backend/supabase/migrations/20250110000001_fix_rls_policies.sql`
-   - `backend/supabase/migrations/20250110000002_add_package_insert_function.sql`
+#### 3. Seed Sample Data (Optional)
 
-#### 4. Add Sample Data (Optional)
+You can create travel packages manually through the admin panel or by inserting documents directly in MongoDB Compass. Automated seed scripts will be added soon.
 
-```bash
-cd backend
-npm run add-packages
-```
+#### 4. Frontend Setup
 
-#### 5. Frontend Setup
+Open a new terminal session:
 
 ```bash
 # Navigate to frontend directory
@@ -1008,20 +979,15 @@ cd ../frontend
 npm install
 
 # Create .env file
-cat > .env << EOF
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+cat > .env << 'EOF'
+VITE_API_URL=http://localhost:5000
 EOF
-```
 
-#### 6. Start Development Server
-
-```bash
-# From frontend directory
+# Start Vite dev server
 npm run dev
 ```
 
-Application will be available at `http://localhost:8080`
+The frontend will run on `http://localhost:8080` (configured via Vite) and proxy API calls to the backend URL defined in `VITE_API_URL`.
 
 ---
 
@@ -1030,25 +996,32 @@ Application will be available at `http://localhost:8080`
 ```
 travel-package-website/
 │
-├── backend/                      # Backend configuration
+├── backend/                      # Express REST API
 │   ├── config/
-│   │   └── db.js                # Supabase client config
-│   ├── models/
-│   │   └── User.js              # User model
-│   ├── routes/
-│   │   └── authRoutes.js        # Auth routes (docs)
+│   │   └── db.js                # MongoDB connection helper
 │   ├── controllers/
-│   │   └── authController.js    # Auth logic (docs)
+│   │   ├── authController.js
+│   │   ├── bookingController.js
+│   │   ├── cartController.js
+│   │   ├── packageController.js
+│   │   └── wishlistController.js
 │   ├── middleware/
-│   │   └── authMiddleware.js    # Auth middleware (docs)
+│   │   └── authMiddleware.js    # JWT protection
+│   ├── models/
+│   │   ├── Booking.js
+│   │   ├── CartItem.js
+│   │   ├── TravelPackage.js
+│   │   ├── User.js
+│   │   └── WishlistItem.js
+│   ├── routes/
+│   │   ├── authRoutes.js
+│   │   ├── bookingRoutes.js
+│   │   ├── cartRoutes.js
+│   │   ├── packageRoutes.js
+│   │   └── wishlistRoutes.js
 │   ├── utils/
-│   │   └── generateToken.js     # Token utils (docs)
-│   ├── supabase/
-│   │   ├── config.toml          # Supabase config
-│   │   └── migrations/          # Database migrations
-│   ├── scripts/
-│   │   ├── add-sample-packages.ts
-│   │   └── check-supabase-connection.ts
+│   │   └── generateToken.js     # JWT helpers
+│   ├── server.js                # Express entry point
 │   └── package.json
 │
 ├── frontend/                     # React frontend
@@ -1059,61 +1032,41 @@ travel-package-website/
 │   │   ├── index.css            # Base styles
 │   │   │
 │   │   ├── components/          # React components
-│   │   │   ├── Navbar.tsx       # Navigation bar
-│   │   │   ├── Footer.tsx       # Footer
-│   │   │   ├── Hero.tsx         # Hero section
-│   │   │   ├── PackageCard.tsx  # Package card
-│   │   │   ├── ProtectedRoute.tsx # Route protection
+│   │   │   ├── Navbar.tsx
+│   │   │   ├── Footer.tsx
+│   │   │   ├── Hero.tsx
+│   │   │   ├── PackageCard.tsx
+│   │   │   ├── ProtectedRoute.tsx
 │   │   │   └── ui/              # shadcn/ui components
 │   │   │
 │   │   ├── pages/               # Page components
-│   │   │   ├── Home.tsx         # Landing page
-│   │   │   ├── Packages.tsx     # Packages listing
-│   │   │   ├── PackageDetail.tsx # Package details
-│   │   │   ├── Booking.tsx       # Booking page
-│   │   │   ├── Dashboard.tsx    # User dashboard
-│   │   │   ├── Admin.tsx        # Admin panel
-│   │   │   ├── Login.tsx        # Login page
-│   │   │   ├── Signup.tsx       # Signup page
-│   │   │   └── NotFound.tsx     # 404 page
+│   │   │   ├── Home.tsx
+│   │   │   ├── Packages.tsx
+│   │   │   ├── PackageDetail.tsx
+│   │   │   ├── Booking.tsx
+│   │   │   ├── Dashboard.tsx
+│   │   │   ├── Admin.tsx
+│   │   │   ├── Login.tsx
+│   │   │   ├── Signup.tsx
+│   │   │   └── NotFound.tsx
 │   │   │
 │   │   ├── contexts/            # React contexts
-│   │   │   ├── AuthContext.tsx  # Authentication
-│   │   │   ├── CartContext.tsx   # Shopping cart
-│   │   │   └── WishlistContext.tsx # Wishlist
+│   │   │   ├── AuthContext.tsx
+│   │   │   ├── CartContext.tsx
+│   │   │   └── WishlistContext.tsx
 │   │   │
-│   │   ├── hooks/               # Custom hooks
-│   │   │   ├── use-mobile.tsx
-│   │   │   └── use-toast.ts
-│   │   │
-│   │   ├── services/            # API services
+│   │   ├── services/            # API helpers
 │   │   │   └── api.ts
 │   │   │
-│   │   ├── integrations/        # Third-party integrations
-│   │   │   └── supabase/
-│   │   │       ├── client.ts    # Supabase client
-│   │   │       └── types.ts     # TypeScript types
-│   │   │
-│   │   └── lib/                 # Utilities
-│   │       ├── utils.ts         # General utilities
-│   │       └── currency.ts      # Currency formatting
+│   │   └── hooks/               # Custom hooks
+│   │       └── use-toast.ts
 │   │
 │   ├── public/                  # Static assets
-│   │   ├── favicon.svg
-│   │   ├── favicon.ico
-│   │   └── robots.txt
-│   │
-│   ├── index.html               # HTML entry point
-│   ├── package.json             # Dependencies
-│   ├── vite.config.ts           # Vite config
-│   ├── tsconfig.json            # TypeScript config
-│   ├── tailwind.config.ts       # Tailwind config
-│   └── postcss.config.js        # PostCSS config
+│   └── package.json
 │
-├── README.md                    # This file
-├── SETUP.md                     # Detailed setup guide
-├── vercel.json                  # Vercel deployment config
-└── .gitignore                   # Git ignore rules
+├── README.md                    # Project documentation
+├── SETUP.md                     # Additional setup notes
+└── VERCEL_DEPLOYMENT.md         # Deployment configuration
 ```
 
 ---
@@ -1210,8 +1163,7 @@ The project is configured for Vercel deployment with `vercel.json`.
 
 3. **Configure Environment Variables**
    - Add in Vercel dashboard:
-     - `VITE_SUPABASE_URL`
-     - `VITE_SUPABASE_PUBLISHABLE_KEY`
+     - `VITE_API_URL`
 
 4. **Deploy**
    - Vercel will automatically build and deploy
@@ -1222,15 +1174,17 @@ The project is configured for Vercel deployment with `vercel.json`.
 
 **Frontend (.env)**
 ```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+VITE_API_URL=http://localhost:5000
 ```
 
 **Backend (.env)**
 ```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+PORT=5000
+MONGODB_URI=mongodb://127.0.0.1:27017/travelDB
+JWT_SECRET=super_secret_key_change_me
+JWT_EXPIRES_IN=7d
+JWT_COOKIE_MAX_AGE=604800000
+CLIENT_ORIGIN=http://localhost:5173
 ```
 
 ---
@@ -1272,8 +1226,9 @@ npm run lint     # Run ESLint
 ```bash
 cd backend
 
-npm run add-packages      # Add sample packages
-npm run check-connection  # Verify Supabase connection
+npm run dev       # Start development server with nodemon
+npm run start     # Start server in production mode
+npm run lint      # Lint backend source (if configured)
 ```
 
 ---
@@ -1298,7 +1253,7 @@ This project is open source and available under the [MIT License](LICENSE).
 
 For issues or questions:
 - Check [SETUP.md](./SETUP.md) for setup help
-- Review [Supabase Documentation](https://supabase.com/docs)
+- Review [Express Documentation](https://expressjs.com)
 - Review [React Documentation](https://react.dev)
 - Open an issue on GitHub
 
@@ -1313,4 +1268,4 @@ For issues or questions:
 
 ---
 
-**Made with ❤️ using React, TypeScript, and Supabase**
+**Made with ❤️ using React, TypeScript, Express, and MongoDB**

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { packageApi } from '@/services/api';
 import { Search, Filter, X, ArrowUpDown } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 
@@ -20,85 +20,45 @@ export default function Packages() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const itemsPerPage = 9;
 
+  const buildQueryParams = () => {
+    const params: Record<string, string | number> = {
+      page,
+      limit: itemsPerPage,
+      sortBy
+    };
+
+    if (searchQuery) params.search = searchQuery;
+    if (selectedTags.length > 0) params.tags = selectedTags.join(',');
+
+    if (priceFilter === 'low') params.price = '0:1000';
+    if (priceFilter === 'medium') params.price = '1000:2000';
+    if (priceFilter === 'high') params.price = '2000:';
+
+    if (durationFilter === 'short') params.duration = '0:5';
+    if (durationFilter === 'medium') params.duration = '6:10';
+    if (durationFilter === 'long') params.duration = '11:';
+
+    return params;
+  };
+
   const { data: packages, isLoading } = useQuery({
     queryKey: ['packages', searchQuery, page, sortBy, priceFilter, durationFilter, selectedTags],
     queryFn: async () => {
-      let query = supabase
-        .from('travel_packages')
-        .select('*', { count: 'exact' });
-
-      // Search filter
-      if (searchQuery) {
-        query = query.or(`title.ilike.%${searchQuery}%,location_city.ilike.%${searchQuery}%,location_country.ilike.%${searchQuery}%`);
-      }
-
-      // Tag filter
-      if (selectedTags.length > 0) {
-        query = query.contains('tags', selectedTags);
-      }
-
-      // Price filter
-      if (priceFilter === 'low') {
-        query = query.lte('price', 1000);
-      } else if (priceFilter === 'medium') {
-        query = query.gte('price', 1000).lte('price', 2000);
-      } else if (priceFilter === 'high') {
-        query = query.gte('price', 2000);
-      }
-
-      // Duration filter
-      if (durationFilter === 'short') {
-        query = query.lte('duration', 5);
-      } else if (durationFilter === 'medium') {
-        query = query.gte('duration', 6).lte('duration', 10);
-      } else if (durationFilter === 'long') {
-        query = query.gte('duration', 11);
-      }
-
-      // Sorting
-      if (sortBy === 'newest') {
-        query = query.order('created_at', { ascending: false });
-      } else if (sortBy === 'oldest') {
-        query = query.order('created_at', { ascending: true });
-      } else if (sortBy === 'price-low') {
-        query = query.order('price', { ascending: true });
-      } else if (sortBy === 'price-high') {
-        query = query.order('price', { ascending: false });
-      } else if (sortBy === 'rating') {
-        query = query.order('rating', { ascending: false, nullsFirst: false });
-      } else if (sortBy === 'duration') {
-        query = query.order('duration', { ascending: true });
-      }
-
-      query = query.range((page - 1) * itemsPerPage, page * itemsPerPage - 1);
-
-      const { data, error, count } = await query;
-
-      if (error) throw error;
-      return { data, count };
+      const params = buildQueryParams();
+      const response = await packageApi.list(params);
+      return response;
     }
   });
 
-  // Get all unique tags for filter
   const { data: allTags } = useQuery({
     queryKey: ['all-tags'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('travel_packages')
-        .select('tags');
-
-      if (error) throw error;
-      const tags = new Set<string>();
-      data?.forEach(pkg => {
-        if (pkg.tags) {
-          pkg.tags.forEach(tag => tags.add(tag));
-        }
-      });
-      return Array.from(tags);
+      const { tags } = await packageApi.getTags();
+      return tags;
     }
   });
 
-  const totalPages = packages?.count ? Math.ceil(packages.count / itemsPerPage) : 0;
+  const totalPages = packages?.totalPages || 0;
 
   const toggleTag = (tag: string) => {
     setSelectedTags(prev => 
@@ -161,7 +121,7 @@ export default function Packages() {
                 <span className="text-sm font-medium">Filters:</span>
               </div>
               
-              <Select value={priceFilter} onValueChange={setPriceFilter}>
+              <Select value={priceFilter} onValueChange={(value) => { setPriceFilter(value); setPage(1); }}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Price" />
                 </SelectTrigger>
@@ -173,7 +133,7 @@ export default function Packages() {
                 </SelectContent>
               </Select>
 
-              <Select value={durationFilter} onValueChange={setDurationFilter}>
+              <Select value={durationFilter} onValueChange={(value) => { setDurationFilter(value); setPage(1); }}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Duration" />
                 </SelectTrigger>
@@ -195,7 +155,7 @@ export default function Packages() {
 
             <div className="flex items-center gap-2">
               <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-              <Select value={sortBy} onValueChange={setSortBy}>
+              <Select value={sortBy} onValueChange={(value) => { setSortBy(value); setPage(1); }}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>

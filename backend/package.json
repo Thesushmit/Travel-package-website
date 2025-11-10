@@ -1,20 +1,30 @@
 {
   "name": "travel-package-website-backend",
   "version": "1.0.0",
-  "description": "Backend for Travel Package Website using Supabase",
-  "main": "index.js",
+  "description": "Backend for Travel Package Website using MongoDB",
+  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "add-packages": "tsx scripts/add-sample-packages.ts",
-    "check-connection": "tsx scripts/check-supabase-connection.ts"
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "lint": "eslint ."
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.80.0",
-    "dotenv": "^17.2.3"
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "express-validator": "^7.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.19.3",
+    "morgan": "^1.10.0"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^22.16.5",
-    "tsx": "^4.19.2",
-    "typescript": "^5.8.3"
+    "eslint": "^9.13.0",
+    "nodemon": "^3.1.10"
   }
 }
-

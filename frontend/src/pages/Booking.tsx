@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { packageApi, bookingApi } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -33,15 +33,9 @@ export default function Booking() {
   const { data: pkg, isLoading: packageLoading } = useQuery({
     queryKey: ['package', packageId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('travel_packages')
-        .select('*')
-        .eq('id', packageId)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!data) throw new Error('Package not found');
-      return data;
+      if (!packageId) throw new Error('Package not found');
+      const { package: packageData } = await packageApi.getById(packageId);
+      return packageData;
     },
     enabled: !!packageId,
   });
@@ -66,21 +60,15 @@ export default function Booking() {
     mutationFn: async (data: BookingFormData) => {
       if (!user || !pkg) throw new Error('User or package not found');
 
-      const { data: booking, error } = await supabase
-        .from('bookings')
-        .insert({
-          user_id: user.id,
-          package_id: pkg.id,
-          booking_date: data.booking_date,
-          number_of_guests: data.number_of_guests,
-          total_price: totalPrice,
-          status: 'pending',
-          special_requests: data.special_requests || null,
-        })
-        .select()
-        .single();
+      const payload = {
+        package_id: pkg.id,
+        booking_date: data.booking_date,
+        number_of_guests: data.number_of_guests,
+        total_price: totalPrice,
+        special_requests: data.special_requests || null
+      };
 
-      if (error) throw error;
+      const { booking } = await bookingApi.create(payload);
       return booking;
     },
     onSuccess: () => {

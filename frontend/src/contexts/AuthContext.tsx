@@ -1,14 +1,20 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { authApi } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'user' | 'admin';
+  avatar_url?: string | null;
+}
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, name: string) => Promise<{ error: any | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: any | null }>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
 }
@@ -17,97 +23,44 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          // Check admin status
-          setTimeout(() => {
-            checkAdminStatus(session.user.id);
-          }, 0);
-        } else {
-          setIsAdmin(false);
-        }
-      }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        checkAdminStatus(session.user.id);
-      }
-      
+    const token = authApi.getToken();
+    if (!token) {
       setLoading(false);
-    });
+      return;
+    }
 
-    return () => subscription.unsubscribe();
+    authApi
+      .getMe()
+      .then(({ user }) => {
+        setUser(user);
+      })
+      .catch(() => {
+        authApi.setToken(null);
+        setUser(null);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const checkAdminStatus = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .eq('role', 'admin')
-        .maybeSingle();
-
-      if (!error && data) {
-        setIsAdmin(true);
-      } else {
-        setIsAdmin(false);
-      }
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      setIsAdmin(false);
-    }
+  const handleAuthSuccess = (user: User) => {
+    setUser(user);
+    toast({
+      title: 'Success',
+      description: `Welcome back, ${user.name}!`
+    });
   };
 
   const signUp = async (email: string, password: string, name: string) => {
     try {
-      const redirectUrl = `${window.location.origin}/`;
-      
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: redirectUrl,
-          data: {
-            name
-          }
-        }
-      });
-
-      if (error) {
-        toast({
-          title: 'Error',
-          description: error.message,
-          variant: 'destructive'
-        });
-        return { error };
-      }
-
-      toast({
-        title: 'Success',
-        description: 'Account created successfully! You can now login.',
-      });
-
+      const { user } = await authApi.register({ email, password, name });
+      handleAuthSuccess(user);
       return { error: null };
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || 'Failed to create account',
         variant: 'destructive'
       });
       return { error };
@@ -116,30 +69,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) {
-        toast({
-          title: 'Error',
-          description: error.message,
-          variant: 'destructive'
-        });
-        return { error };
-      }
-
-      toast({
-        title: 'Success',
-        description: 'Logged in successfully!',
-      });
-
+      const { user } = await authApi.login({ email, password });
+      handleAuthSuccess(user);
       return { error: null };
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error.message || 'Failed to login',
         variant: 'destructive'
       });
       return { error };
@@ -148,22 +84,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await authApi.logout();
+    } catch (error: any) {
+      console.error('Logout error:', error);
+    } finally {
+      authApi.setToken(null);
+      setUser(null);
       toast({
         title: 'Success',
-        description: 'Logged out successfully!',
-      });
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive'
+        description: 'Logged out successfully!'
       });
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut, isAdmin }}>
+    <AuthContext.Provider value={{ user, loading, signUp, signIn, signOut, isAdmin: user?.role === 'admin' }}>
       {children}
     </AuthContext.Provider>
   );
