@@ -4,58 +4,74 @@
  * Note: This project uses Supabase Auth, so user management is handled by Supabase
  */
 
-import { supabase } from '../config/db.js';
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
-export class User {
-  /**
-   * Get user profile
-   * @param {string} userId - User ID
-   * @returns {Promise<Object>} User profile
-   */
-  static async getProfile(userId) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, 'Name is required'],
+      trim: true,
+      minlength: [2, 'Name must be at least 2 characters'],
+      maxlength: [100, 'Name must be less than 100 characters']
+    },
+    email: {
+      type: String,
+      required: [true, 'Email is required'],
+      unique: true,
+      lowercase: true,
+      trim: true,
+      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email address']
+    },
+    password: {
+      type: String,
+      required: [true, 'Password is required'],
+      minlength: [6, 'Password must be at least 6 characters']
+    },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user'
+    },
+    avatar_url: {
+      type: String,
+      default: null
+    }
+  },
+  {
+    timestamps: {
+      createdAt: 'created_at',
+      updatedAt: 'updated_at'
+    },
+    toJSON: {
+      virtuals: true,
+      transform: (_, ret) => {
+        ret.id = ret._id.toString();
+        delete ret._id;
+        delete ret.__v;
+        delete ret.password;
+        return ret;
+      }
+    }
+  }
+);
 
-    if (error) throw error;
-    return data;
+userSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) {
+    return next();
   }
 
-  /**
-   * Update user profile
-   * @param {string} userId - User ID
-   * @param {Object} updates - Profile updates
-   * @returns {Promise<Object>} Updated profile
-   */
-  static async updateProfile(userId, updates) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', userId)
-      .select()
-      .single();
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
 
-    if (error) throw error;
-    return data;
-  }
+userSchema.methods.matchPassword = async function (enteredPassword) {
+  return bcrypt.compare(enteredPassword, this.password);
+};
 
-  /**
-   * Check if user is admin
-   * @param {string} userId - User ID
-   * @returns {Promise<boolean>} True if user is admin
-   */
-  static async isAdmin(userId) {
-    const { data, error } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .eq('role', 'admin')
-      .maybeSingle();
+const User = mongoose.model('User', userSchema);
 
-    if (error) throw error;
-    return !!data;
-  }
-}
+export default User;
 

@@ -4,7 +4,7 @@ import { Footer } from '@/components/Footer';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { packageApi } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useWishlist } from '@/contexts/WishlistContext';
@@ -20,15 +20,9 @@ export default function PackageDetail() {
   const { data: pkg, isLoading } = useQuery({
     queryKey: ['package', slug],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('travel_packages')
-        .select('*')
-        .eq('slug', slug)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!data) throw new Error('Package not found');
-      return data;
+      if (!slug) throw new Error('Package not found');
+      const { package: packageData } = await packageApi.getBySlug(slug);
+      return packageData;
     }
   });
 
@@ -104,7 +98,7 @@ export default function PackageDetail() {
                 <div className="mt-8">
                   <h3 className="mb-4 text-lg font-semibold">Tags</h3>
                   <div className="flex flex-wrap gap-2">
-                    {pkg.tags.map((tag, index) => (
+                    {pkg.tags.map((tag: string, index: number) => (
                       <Badge key={index} variant="secondary">
                         {tag}
                       </Badge>
@@ -117,7 +111,7 @@ export default function PackageDetail() {
                 <div className="mt-8">
                   <h3 className="mb-4 text-lg font-semibold">Gallery</h3>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {pkg.images.slice(1).map((image, index) => (
+                    {pkg.images.slice(1).map((image: string, index: number) => (
                       <img
                         key={index}
                         src={image}

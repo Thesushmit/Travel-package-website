@@ -5,50 +5,42 @@
  * This file is for reference/documentation purposes
  */
 
-import { supabase } from '../config/db.js';
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
-/**
- * Verify authentication token
- * @param {string} token - JWT token
- * @returns {Promise<Object>} User data if valid
- */
-export const verifyToken = async (token) => {
-  // Supabase handles token verification automatically
-  // This is implemented in frontend/src/contexts/AuthContext.tsx
-  // Uses: supabase.auth.getUser()
-  
+export const protect = async (req, res, next) => {
   try {
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error) throw error;
-    return user;
+    let token = null;
+
+    if (req.cookies?.token) {
+      token = req.cookies.token;
+    } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (!token) {
+      return res.status(401).json({ message: 'Not authorized, token missing' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select('-password');
+
+    if (!user) {
+      return res.status(401).json({ message: 'Not authorized, user not found' });
+    }
+
+    req.user = user;
+    next();
   } catch (error) {
-    throw new Error('Invalid or expired token');
+    console.error('Auth error:', error.message);
+    return res.status(401).json({ message: 'Not authorized' });
   }
 };
 
-/**
- * Middleware to check if user is authenticated
- * @param {Object} req - Request object (if using Express)
- * @param {Object} res - Response object (if using Express)
- * @param {Function} next - Next middleware function
- */
-export const requireAuth = async (req, res, next) => {
-  // For Supabase, authentication is checked client-side
-  // This would be used if implementing a Node.js/Express backend
-  // Currently handled by ProtectedRoute component in frontend
+export const adminOnly = (req, res, next) => {
+  if (req.user?.role !== 'admin') {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  next();
 };
-
-/**
- * Middleware to check if user is admin
- * @param {Object} req - Request object (if using Express)
- * @param {Object} res - Response object (if using Express)
- * @param {Function} next - Next middleware function
- */
-export const requireAdmin = async (req, res, next) => {
-  // For Supabase, admin check is done via RLS policies
-  // This would be used if implementing a Node.js/Express backend
-  // Currently handled by ProtectedRoute component in frontend
-};
-
-export default { verifyToken, requireAuth, requireAdmin };
 

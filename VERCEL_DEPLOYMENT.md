@@ -35,19 +35,18 @@ The project is configured for Vercel deployment with the following settings:
 
 ## Required Environment Variables
 
-**CRITICAL**: You must set these environment variables in Vercel Dashboard:
+**Important**: Vercel only hosts the frontend. The Express API must be deployed separately (e.g. Render, Railway, Fly.io, or a self-hosted server). Once the backend URL is available, configure the following variable in Vercel:
 
 1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
 2. Select your project: `travel-package-web`
-3. Go to **Settings** → **Environment Variables**
-4. Add the following variables for **Production** environment:
+3. Navigate to **Settings** → **Environment Variables**
+4. Add the variable for **Production** (and Preview if needed):
 
 ```
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+VITE_API_URL=https://your-backend-domain.com
 ```
 
-5. **Redeploy** your application after adding environment variables
+5. Redeploy the project after saving changes.
 
 ## Troubleshooting Blank Page
 
@@ -55,20 +54,15 @@ If you see a blank white page after deployment:
 
 ### 1. Check Environment Variables
 
-The app includes an `EnvCheck` component that will display a warning if environment variables are missing. If you see this warning, add the variables in Vercel and redeploy.
+`EnvCheck` will display a warning if `VITE_API_URL` is missing. Add the variable in Vercel and redeploy.
 
 ### 2. Check Browser Console
 
-Open browser DevTools (F12) and check the Console tab for errors:
-- Missing environment variables will show error messages
-- JavaScript errors will be displayed here
+Open browser DevTools (F12) and review the Console tab for errors such as failed network requests or missing environment variables.
 
 ### 3. Check Network Tab
 
-In DevTools → Network tab:
-- Check if JavaScript files are loading (status 200)
-- Check if assets are loading correctly
-- Look for 404 errors
+Ensure API requests to `VITE_API_URL` are succeeding and not returning CORS or 5xx errors.
 
 ### 4. Verify Build Output
 
@@ -77,28 +71,27 @@ The build should create these files in `frontend/dist/`:
 - `assets/index-*.js`
 - `assets/index-*.css`
 - `assets/vendor-*.js`
-- `assets/supabase-*.js`
 - `assets/charts-*.js`
 
 ### 5. Common Issues
 
 **Issue**: Blank page with no errors
-- **Solution**: Environment variables not set. Add them in Vercel and redeploy.
+- **Solution**: `VITE_API_URL` not set or backend unreachable.
 
 **Issue**: 404 errors for assets
-- **Solution**: Check `outputDirectory` in vercel.json matches build output
+- **Solution**: Ensure `outputDirectory` in `vercel.json` matches build output.
 
-**Issue**: App loads but shows errors
-- **Solution**: Check browser console for specific error messages
+**Issue**: API requests blocked by CORS
+- **Solution**: Update the backend `CLIENT_ORIGIN` env variable to include your Vercel domain.
 
 ## Build Process
 
 1. Vercel clones the repository
-2. Runs `cd frontend && npm install` (installs dependencies)
-3. Runs `cd frontend && npm run build` (builds the app)
-4. Outputs files to `frontend/dist/`
-5. Serves files from `frontend/dist/` directory
-6. All routes rewrite to `/index.html` for SPA routing
+2. Runs `cd frontend && npm install`
+3. Runs `cd frontend && npm run build`
+4. Outputs static files to `frontend/dist/`
+5. Serves files from the `frontend/dist/` directory
+6. SPA routing rewrites all routes to `/index.html`
 
 ## Manual Deployment Steps
 
@@ -123,14 +116,16 @@ npm run build
 npm run preview
 ```
 
-This will build and serve the production version locally at `http://localhost:4173`
+The production build will be served at `http://localhost:4173`.
 
 ## Support
 
-If issues persist:
+For persistent issues:
 1. Check Vercel deployment logs
-2. Check browser console for errors
-3. Verify environment variables are set correctly
-4. Ensure Supabase project is active and accessible
+2. Confirm `VITE_API_URL` points to a live backend
+3. Verify the backend allows the Vercel domain via CORS
+4. Inspect browser console for runtime errors
+
+
 
 

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { bookingApi } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useWishlist } from '@/contexts/WishlistContext';
@@ -41,7 +41,6 @@ ChartJS.register(
   Filler
 );
 
-// Helper function to format currency
 const formatCurrency = (amount: number, currency: string = 'INR') => {
   if (currency === 'INR') {
     return `₹${amount.toLocaleString('en-IN')}`;
@@ -57,51 +56,33 @@ export default function Dashboard() {
   const { cartItems, removeFromCart, isLoading: cartLoading, cartTotal } = useCart();
   const { wishlistItems, removeFromWishlist, isLoading: wishlistLoading } = useWishlist();
 
-  const { data: bookings, isLoading: bookingsLoading } = useQuery({
+  const { data: bookingsResponse, isLoading: bookingsLoading } = useQuery({
     queryKey: ['bookings', user?.id],
     queryFn: async () => {
-      if (!user) return [];
-      
-      const { data, error } = await supabase
-        .from('bookings')
-        .select(`
-          *,
-          travel_packages (
-            id,
-            title,
-            slug,
-            images,
-            location_city,
-            location_country,
-            currency
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data;
+      if (!user) return { bookings: [] };
+      return bookingApi.list();
     },
     enabled: !!user,
   });
 
-  // Prepare chart data
-  const bookingsByStatus = bookings?.reduce((acc: any, booking: any) => {
+  const bookings = bookingsResponse?.bookings || [];
+
+  const bookingsByStatus = bookings.reduce((acc: Record<string, number>, booking: any) => {
     acc[booking.status] = (acc[booking.status] || 0) + 1;
     return acc;
-  }, {}) || {};
+  }, {});
 
-  const bookingsByMonth = bookings?.reduce((acc: any, booking: any) => {
+  const bookingsByMonth = bookings.reduce((acc: Record<string, number>, booking: any) => {
     const month = format(new Date(booking.created_at), 'MMM yyyy');
     acc[month] = (acc[month] || 0) + 1;
     return acc;
-  }, {}) || {};
+  }, {});
 
-  const spendingByMonth = bookings?.reduce((acc: any, booking: any) => {
+  const spendingByMonth = bookings.reduce((acc: Record<string, number>, booking: any) => {
     const month = format(new Date(booking.created_at), 'MMM yyyy');
     acc[month] = (acc[month] || 0) + Number(booking.total_price || 0);
     return acc;
-  }, {}) || {};
+  }, {});
 
   const statusChartData = {
     labels: Object.keys(bookingsByStatus),
@@ -109,10 +90,10 @@ export default function Dashboard() {
       label: 'Bookings by Status',
       data: Object.values(bookingsByStatus),
       backgroundColor: [
-        'rgba(34, 197, 94, 0.8)', // green for confirmed
-        'rgba(234, 179, 8, 0.8)', // yellow for pending
-        'rgba(239, 68, 68, 0.8)', // red for cancelled
-        'rgba(59, 130, 246, 0.8)', // blue for completed
+        'rgba(34, 197, 94, 0.8)',
+        'rgba(234, 179, 8, 0.8)',
+        'rgba(239, 68, 68, 0.8)',
+        'rgba(59, 130, 246, 0.8)',
       ],
       borderColor: [
         'rgba(34, 197, 94, 1)',
@@ -148,11 +129,27 @@ export default function Dashboard() {
   };
 
   const handleRemoveFromCart = async (cartItemId: string) => {
-    await removeFromCart(cartItemId);
+    try {
+      await removeFromCart(cartItemId);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to remove item from cart',
+        variant: 'destructive'
+      });
+    }
   };
 
   const handleRemoveFromWishlist = async (wishlistItemId: string) => {
-    await removeFromWishlist(wishlistItemId);
+    try {
+      await removeFromWishlist(wishlistItemId);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to remove item from wishlist',
+        variant: 'destructive'
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -170,8 +167,8 @@ export default function Dashboard() {
     }
   };
 
-  const totalSpent = bookings?.reduce((sum: number, booking: any) => sum + Number(booking.total_price || 0), 0) || 0;
-  const averageBooking = bookings && bookings.length > 0 ? totalSpent / bookings.length : 0;
+  const totalSpent = bookings.reduce((sum: number, booking: any) => sum + Number(booking.total_price || 0), 0);
+  const averageBooking = bookings.length > 0 ? totalSpent / bookings.length : 0;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -184,8 +181,7 @@ export default function Dashboard() {
             <p className="text-muted-foreground mt-2">Manage your bookings, wishlist, and cart</p>
           </div>
 
-          {/* Statistics Cards */}
-          {bookings && bookings.length > 0 && (
+          {bookings.length > 0 && (
             <div className="grid gap-4 md:grid-cols-4 mb-8">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -230,8 +226,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Charts Section */}
-          {bookings && bookings.length > 0 && (
+          {bookings.length > 0 && (
             <div className="grid gap-6 md:grid-cols-2 mb-8">
               <Card>
                 <CardHeader>
@@ -317,7 +312,7 @@ export default function Dashboard() {
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="bookings">
                 <Package className="mr-2 h-4 w-4" />
-                Bookings ({bookings?.length || 0})
+                Bookings ({bookings.length})
               </TabsTrigger>
               <TabsTrigger value="wishlist">
                 <Heart className="mr-2 h-4 w-4" />
@@ -334,7 +329,7 @@ export default function Dashboard() {
                 <div className="flex justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-              ) : bookings && bookings.length > 0 ? (
+              ) : bookings.length > 0 ? (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                   {bookings.map((booking: any) => (
                     <Card key={booking.id}>

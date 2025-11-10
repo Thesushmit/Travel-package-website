@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/integrations/supabase/client';
+import { packageApi } from '@/services/api';
 import { toast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -38,31 +38,26 @@ export default function Admin() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.from('travel_packages').insert([
-        {
-          title: formData.title,
-          slug: formData.slug,
-          summary: formData.summary,
-          description: formData.description,
-          price: parseFloat(formData.price),
-          currency: formData.currency,
-          duration: parseInt(formData.duration),
-          location_city: formData.location_city,
-          location_country: formData.location_country,
-          seats_available: parseInt(formData.seats_available),
-          images: formData.images.split(',').map(url => url.trim()).filter(Boolean),
-          tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean)
-        }
-      ]);
-
-      if (error) throw error;
+      await packageApi.create({
+        title: formData.title,
+        slug: formData.slug,
+        summary: formData.summary,
+        description: formData.description,
+        price: parseFloat(formData.price),
+        currency: formData.currency,
+        duration: parseInt(formData.duration),
+        location_city: formData.location_city,
+        location_country: formData.location_country,
+        seats_available: parseInt(formData.seats_available),
+        images: formData.images ? formData.images.split(',').map(url => url.trim()).filter(Boolean) : [],
+        tags: formData.tags ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean) : []
+      });
 
       toast({
         title: 'Success',
         description: 'Travel package created successfully!'
       });
 
-      // Reset form
       setFormData({
         title: '',
         slug: '',
